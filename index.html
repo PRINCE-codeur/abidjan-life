@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Vie à Abidjan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Abidjan Life">
+<meta name="theme-color" content="#0f3d2e">
+<style>
+  :root { --bg:#f4f1ea; --card:#fff; --txt:#1c1c1c; --accent:#0f7a4f; --accent2:#e07b00; --muted:#666; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#10170f; --card:#1b251a; --txt:#f0f0f0; --accent:#2fb67a; --accent2:#ffa83d; --muted:#9aa; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--txt);
+    font-family: -apple-system, system-ui, "Segoe UI", sans-serif; }
+  body { padding: env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 14px); max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 22px; text-align:center; margin: 14px 0 4px; }
+  .sub { text-align:center; color:var(--muted); font-size:14px; margin-bottom:12px; }
+  .card { background:var(--card); border-radius:14px; padding:12px 14px; margin-bottom:12px; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; font-size:15px; }
+  .stats b { color:var(--accent); }
+  .bar { height:10px; background:rgba(128,128,128,.25); border-radius:6px; overflow:hidden; grid-column:1/-1; }
+  .bar i { display:block; height:100%; background:var(--accent2); }
+  #log { min-height:90px; max-height:34vh; overflow-y:auto; font-size:15px; line-height:1.4; }
+  #log p { margin:0 0 6px; }
+  .menu { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  button { font-size:16px; padding:14px 8px; border:0; border-radius:12px; background:var(--accent); color:#fff; font-weight:600; }
+  button:active { opacity:.7; }
+  button.sec { background:var(--accent2); }
+  button.gris { background:#777; }
+  button.full { grid-column:1/-1; }
+  button:disabled { opacity:.4; }
+</style>
+</head>
+<body>
+<h1>🏠 Vie à Abidjan</h1>
+<div class="sub">Objectif : construire ta maison</div>
+
+<div class="card stats" id="stats"></div>
+<div class="card" id="log"></div>
+<div class="menu" id="menu"></div>
+
+<script>
+const QUARTIERS = { "Abobo":0.9, "Yopougon":1.0, "Marcory":1.1, "Cocody":1.3, "Plateau":1.5 };
+const METIERS = { "Livreur":[3000,6000], "Vendeur au marché":[2500,5500], "Aide mécanicien":[3500,7000] };
+const PRIX_MOTO = 150000, PRIX_COMMERCE = 200000;
+const ETAPES_MAISON = [["les fondations",300000],["les murs",500000],["le toit",400000]];
+const CLE = "abidjan_life_sauvegarde";
+
+let e = null;
+let ecran = "accueil"; // accueil | jeu | quartiers | quitter | fin
+
+const rnd = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+const fmt = n => n.toLocaleString("fr-FR");
+
+function dit(t){
+  const log = document.getElementById("log");
+  const p = document.createElement("p"); p.textContent = t; log.appendChild(p);
+  log.scrollTop = log.scrollHeight;
+}
+function efface(){ document.getElementById("log").innerHTML = ""; }
+
+function sauvegarder(){
+  try { localStorage.setItem(CLE, JSON.stringify(e)); dit("Partie sauvegardée."); }
+  catch(_) { dit("Impossible de sauvegarder sur cet appareil."); }
+}
+function charger(){
+  try { const s = localStorage.getItem(CLE); return s ? JSON.parse(s) : null; }
+  catch(_) { return null; }
+}
+function existeSauvegarde(){
+  try { return !!localStorage.getItem(CLE); } catch(_) { return false; }
+}
+function nouvellePartie(){
+  return {jour:1, argent:5000, energie:100, quartier:"Yopougon", moto:false, commerce:false, maison:0};
+}
+
+function statut(){
+  const s = document.getElementById("stats");
+  if(!e){ s.style.display="none"; return; }
+  s.style.display="grid";
+  s.innerHTML =
+    `<div>📅 Jour <b>${e.jour}</b></div><div>📍 <b>${e.quartier}</b></div>`+
+    `<div>💰 <b>${fmt(e.argent)}</b> FCFA</div><div>⚡ <b>${e.energie}</b>/100</div>`+
+    `<div class="bar"><i style="width:${e.energie}%"></i></div>`+
+    `<div>🏍️ Moto : <b>${e.moto?"oui":"non"}</b></div><div>🏪 Commerce : <b>${e.commerce?"oui":"non"}</b></div>`+
+    `<div style="grid-column:1/-1">🏗️ Maison : <b>${e.maison}/${ETAPES_MAISON.length}</b> étapes</div>`;
+}
+
+function travailler(){
+  if(e.energie < 30){ dit("Trop fatigué. Repose-toi d'abord."); return; }
+  const noms = Object.keys(METIERS);
+  const metier = noms[rnd(0,noms.length-1)];
+  const [bas,haut] = METIERS[metier];
+  let gain = rnd(bas,haut) * QUARTIERS[e.quartier];
+  if(e.moto) gain *= 1.3;
+  gain = Math.floor(gain);
+  e.argent += gain; e.energie -= 30;
+  dit(`Tu travailles comme ${metier} à ${e.quartier} : +${fmt(gain)} FCFA.`);
+  if(Math.random() < 0.15){
+    e.argent = Math.max(0, e.argent - 1500);
+    dit("Mauvaise surprise (embouteillage, pickpocket...) : -1500 FCFA.");
+  }
+}
+function dormir(){
+  e.jour += 1; e.energie = 100; e.argent = Math.max(0, e.argent - 1000);
+  dit("Tu dors. Nourriture et transport : -1000 FCFA.");
+  if(e.commerce){
+    const gain = rnd(4000,9000); e.argent += gain;
+    dit(`Ton commerce rapporte ${fmt(gain)} FCFA.`);
+  }
+}
+function voyagerVers(nom){
+  const cout = e.moto ? 300 : 800;
+  if(e.argent < cout){ dit("Pas assez d'argent pour le transport."); ecran="jeu"; return; }
+  e.argent -= cout; e.quartier = nom;
+  dit(`Tu arrives à ${nom} (transport : -${cout} FCFA).`);
+  ecran = "jeu";
+}
+function acheter(cle, prix, msg){
+  if(e[cle]) dit("Tu l'as déjà.");
+  else if(e.argent < prix) dit(`Il te faut ${fmt(prix)} FCFA.`);
+  else { e.argent -= prix; e[cle] = true; dit(msg); }
+}
+function construire(){
+  if(e.maison >= ETAPES_MAISON.length) return;
+  const [nom,prix] = ETAPES_MAISON[e.maison];
+  if(e.argent < prix){ dit(`Pour ${nom}, il te faut ${fmt(prix)} FCFA.`); return; }
+  e.argent -= prix; e.maison += 1;
+  dit(`Tu as construit ${nom} !`);
+  if(e.maison >= ETAPES_MAISON.length) ecran = "fin";
+}
+
+function bouton(label, fn, cls){
+  const b = document.createElement("button");
+  b.textContent = label; if(cls) b.className = cls;
+  b.onclick = () => { fn(); rendre(); };
+  document.getElementById("menu").appendChild(b);
+}
+
+function rendre(){
+  statut();
+  const m = document.getElementById("menu"); m.innerHTML = "";
+  if(ecran === "accueil"){
+    if(existeSauvegarde()){
+      bouton("▶ Continuer ma partie", () => {
+        e = charger();
+        if(!e){ dit("Sauvegarde illisible, nouvelle partie."); e = nouvellePartie(); }
+        efface(); ecran="jeu";
+      }, "full");
+      bouton("🆕 Nouvelle partie", () => { e = nouvellePartie(); efface(); ecran="jeu"; }, "full sec");
+    } else {
+      bouton("🆕 Commencer", () => { e = nouvellePartie(); efface(); ecran="jeu"; }, "full");
+    }
+  } else if(ecran === "jeu"){
+    bouton("💼 Travailler", travailler);
+    bouton("😴 Dormir", dormir);
+    bouton("🗺️ Quartier", () => { ecran="quartiers"; });
+    bouton(`🏍️ Moto (${fmt(PRIX_MOTO)})`, () => acheter("moto",PRIX_MOTO,"Tu as une moto ! Tu gagnes plus et voyages moins cher."), "sec");
+    bouton(`🏪 Commerce (${fmt(PRIX_COMMERCE)})`, () => acheter("commerce",PRIX_COMMERCE,"Ton commerce est ouvert ! Revenu chaque jour."), "sec");
+    const [nom,prix] = ETAPES_MAISON[e.maison];
+    bouton(`🏗️ Construire ${nom} (${fmt(prix)})`, construire, "sec");
+    bouton("💾 Sauvegarder", sauvegarder, "gris");
+    bouton("🚪 Quitter", () => { ecran="quitter"; }, "gris");
+  } else if(ecran === "quartiers"){
+    Object.keys(QUARTIERS).forEach(n => bouton(n, () => voyagerVers(n)));
+    bouton("↩ Retour", () => { ecran="jeu"; }, "gris full");
+  } else if(ecran === "quitter"){
+    dit("Sauvegarder avant de quitter ?");
+    bouton("Oui, sauvegarder", () => { sauvegarder(); dit("À bientôt !"); ecran="accueil"; });
+    bouton("Non", () => { dit("À bientôt !"); ecran="accueil"; }, "gris");
+    bouton("↩ Retour au jeu", () => { ecran="jeu"; }, "full");
+  } else if(ecran === "fin"){
+    dit(`BRAVO ! Ta maison est terminée au jour ${e.jour} !`);
+    bouton("🔄 Rejouer", () => { e=null; efface(); ecran="accueil"; }, "full");
+  }
+}
+
+dit("=== ABIDJAN LIFE ===");
+dit("Objectif : construire ta maison. Bonne chance !");
+rendre();
+</script>
+</body>
+</html>
